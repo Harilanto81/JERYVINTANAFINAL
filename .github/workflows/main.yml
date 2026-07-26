@@ -26,6 +26,15 @@ jobs:
         pip3 install sh==1.14.3
         pip3 install buildozer==1.5.0 cython==0.29.36 python-for-android==2024.1.21
 
+    - name: Fix p4a and NDK versions
+      run: |
+        # 1. Pré-cloner python-for-android avec le tag stable (2024.1.21) pour éviter le bug de la branche master (conflit sh>=2.0)
+        mkdir -p .buildozer/android/platform
+        git clone -b 2024.1.21 --single-branch https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
+        
+        # 2. Forcer une version de NDK valide (27c) car p4a recommande à tort la version 28c qui n'existe pas
+        grep -q "^android.ndk" buildozer.spec && sed -i 's/^android.ndk.*/android.ndk = 27c/' buildozer.spec || echo "android.ndk = 27c" >> buildozer.spec
+
     - name: Build with Buildozer
       run: buildozer android debug
 
