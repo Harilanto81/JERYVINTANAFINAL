@@ -23,13 +23,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
         pip3 install --upgrade pip
-        # On laisse pip installer buildozer et cython. 
-        # On supprime l'installation manuelle de python-for-android et sh pour éviter les conflits : Buildozer gérera p4a lui-même.
-        pip3 install buildozer==1.5.0 cython==0.29.36
+        # On réinstalle les versions stables pour éviter le bug Python 3.14 de la branche master
+        pip3 install buildozer==1.5.0 cython==0.29.36 python-for-android==2024.1.21 sh==1.14.3
 
     - name: Fix NDK version in buildozer.spec
       run: |
-        # Force une version de NDK valide (27c) car p4a recommande à tort la version 28c qui n'existe pas encore
+        # Force une version de NDK valide (27c) car p4a recommande à tort la version 28c qui n'existe pas
         grep -q "^android.ndk" buildozer.spec && sed -i 's/^android.ndk.*/android.ndk = 27c/' buildozer.spec || echo "android.ndk = 27c" >> buildozer.spec
 
     - name: Build with Buildozer
