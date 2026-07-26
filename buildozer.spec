@@ -17,10 +17,11 @@ android.api = 34
 android.minapi = 24
 android.ndk = 25b
 
+p4a.branch = v2024.1.21
+
 icon.filename = %(source.dir)s/icon.png
 presplash.filename = %(source.dir)s/icon.png
 
 [buildozer]
 log_level = 2
-p4a.branch = v2024.1.21
 warn_on_root = 1
