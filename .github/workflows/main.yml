@@ -23,12 +23,20 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
         pip3 install --upgrade pip
-        # On réinstalle les versions stables pour éviter le bug Python 3.14 de la branche master
-        pip3 install buildozer==1.5.0 cython==0.29.36 python-for-android==2024.1.21 sh==1.14.3
+        pip3 install buildozer==1.5.0 cython==0.29.36
 
-    - name: Fix NDK version in buildozer.spec
+    - name: Prepare stable python-for-android and fix NDK
       run: |
-        # Force une version de NDK valide (27c) car p4a recommande à tort la version 28c qui n'existe pas
+        # 1. Télécharger le code source stable de python-for-android (2024.1.21) depuis PyPI
+        # pour éviter que buildozer ne clone la branche master (qui a le bug Python 3.14 et sh 2.4.0)
+        mkdir -p p4a_src
+        pip3 download python-for-android==2024.1.21 --no-binary :all: --no-deps -d ./p4a_download
+        tar -xzf ./p4a_download/python-for-android-*.tar.gz -C ./p4a_src --strip-components=1
+        
+        # 2. Indiquer à buildozer d'utiliser ce code source local au lieu de cloner master
+        grep -q "^p4a.source_dir" buildozer.spec && sed -i "s|^p4a.source_dir.*|p4a.source_dir = $(pwd)/p4a_src|" buildozer.spec || echo "p4a.source_dir = $(pwd)/p4a_src" >> buildozer.spec
+        
+        # 3. Forcer une version de NDK valide (27c) car p4a recommande à tort la version 28c qui n'existe pas
         grep -q "^android.ndk" buildozer.spec && sed -i 's/^android.ndk.*/android.ndk = 27c/' buildozer.spec || echo "android.ndk = 27c" >> buildozer.spec
 
     - name: Build with Buildozer
