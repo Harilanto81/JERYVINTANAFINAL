@@ -19,6 +19,8 @@ android.archs = armeabi-v7a
 
 # Mandraiky ny licence SDK automatique
 android.accept_sdk_license = True
+android.ndk = 25b
+android.sdk = 25
 
 # Sary icône
 icon.filename = %(source.dir)s/icon.png
