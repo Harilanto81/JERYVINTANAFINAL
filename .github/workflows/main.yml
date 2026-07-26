@@ -46,6 +46,15 @@ jobs:
         # 2. Forcer une version de NDK valide (27c) car p4a recommande à tort la version 28c
         grep -q "^android.ndk" buildozer.spec && sed -i 's/^android.ndk.*/android.ndk = 27c/' buildozer.spec || echo "android.ndk = 27c" >> buildozer.spec
 
+    - name: Ensure icon.png exists
+      run: |
+        if [ ! -f icon.png ]; then
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=' | base64 --decode > icon.png
+          echo "Created placeholder icon.png"
+        else
+          echo "icon.png exists"
+        fi
+
     - name: Build with Buildozer
       run: buildozer android debug
 
