@@ -17,6 +17,18 @@ android.api = 34
 android.minapi = 24
 android.ndk = 25b
 
+icon.filename = %(source.dir)s/icon.png
+presplash.filename = %(source.dir)s/icon.png
+
+orientation = portrait
+fullscreen = 0
+
+android.accept_sdk_license = True
+android.archs = armeabi-v7a, arm64-v8a
+android.api = 34
+android.minapi = 24
+android.ndk = 25b
+
 p4a.branch = 2024.1.21
 
 icon.filename = %(source.dir)s/icon.png
