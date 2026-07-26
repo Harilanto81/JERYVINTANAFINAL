@@ -11,6 +11,9 @@ requirements = python3,kivy
 orientation = portrait
 fullscreen = 0
 
+# Mandraiky ny licence SDK automatique
+android.accept_sdk_license = True
+
 # Sary icône
 icon.filename = %(source.dir)s/icon.png
 
