@@ -22,4 +22,5 @@ presplash.filename = %(source.dir)s/icon.png
 
 [buildozer]
 log_level = 2
+p4a.branch = v2024.1.21
 warn_on_root = 1
