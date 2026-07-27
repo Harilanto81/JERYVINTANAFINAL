@@ -6,14 +6,14 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-# --- CORRECTION DES DÉPENDANCES ---
-# Ajout de kivymd, pillow et suppression des versions strictes de python
-requirements = python3,kivy==2.3.0,kivymd,pillow
+# --- DÉPENDANCES STABLES ---
+# Fixer kivymd==1.2.0 empêche python-for-android d'utiliser une version unstable/master
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
 
 orientation = portrait
 fullscreen = 0
 
-# --- CONFIGURATION ANDROID RUST / SDK / NDK ---
+# --- CONFIGURATION ANDROID ---
 android.accept_sdk_license = True
 android.archs = arm64-v8a
 android.api = 33
