@@ -74,5 +74,48 @@ jobs:
         fi
 
     - name: Ensure buildozer targets 64-bit ABIs
-      run: |](#)
-
+      run: |
+        grep -q "^android.ndk" buildozer.spec || echo "android.ndk = 25b" >> buildozer.spec
+
+        if grep -q "^android.archs" buildozer.spec; then
+          sed -i "s/^android.archs.*/android.archs = arm64-v8a, armeabi-v7a/" buildozer.spec
+        else
+          echo "android.archs = arm64-v8a, armeabi-v7a" >> buildozer.spec
+        fi
+
+        if grep -q "^android.arch" buildozer.spec; then
+          sed -i "s/^android.arch.*/android.arch = arm64-v8a, armeabi-v7a/" buildozer.spec || true
+        fi
+
+        echo "::group::buildozer.spec (tail)"
+        tail -n 20 buildozer.spec || true
+        echo "::endgroup::"
+
+    - name: Build with Buildozer
+      env:
+        BUILDOZER_SKIP_PIP_UPGRADE: 1
+      run: buildozer android debug
+
+    - name: Verify APK contains arm64 libs
+      run: |
+        apk=$(ls -1 bin/*.apk 2>/dev/null | head -n1 || true)
+        if [ -z "$apk" ]; then
+          echo "No APK found in bin/ — listing bin/:"
+          ls -la bin || true
+          exit 1
+        fi
+        echo "Built APK: $apk"
+        echo "Checking for lib/arm64-v8a inside the APK..."
+        if unzip -l "$apk" | grep -q "lib/arm64-v8a/"; then
+          echo "OK: arm64 libs found in APK."
+        else
+          echo "ERROR: arm64 libs NOT found in APK. Listing APK lib/ entries:"
+          unzip -l "$apk" | grep "lib/" || true
+          exit 1
+        fi
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: JeryVintana-APK
+        path: bin/*.apk
