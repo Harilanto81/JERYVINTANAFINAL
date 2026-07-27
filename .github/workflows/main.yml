@@ -58,6 +58,24 @@ jobs:
     - name: Clean previous builds
       run: rm -rf .buildozer/ build/ dist/ bin/
 
+    - name: Prepare stable python-for-android and fix spec
+      run: |
+        # 1. Pré-télécharger la version stable de p4a (2024.1.21) pour éviter le bug de la branche master (Python 3.14)
+        P4A_DIR=.buildozer/android/platform/python-for-android
+        mkdir -p $P4A_DIR
+        pip install python-for-android==2024.1.21 --target $P4A_DIR --no-deps
+        
+        # 2. Corriger le buildozer.spec pour éviter les erreurs 404
+        # a) Forcer le NDK à 25b pour correspondre au NDK téléchargé manuellement
+        sed -i '/^android.ndk/d' buildozer.spec
+        echo "android.ndk = 25b" >> buildozer.spec
+        
+        # b) Retirer la version spécifique de python3 et hostpython3 (3.11.15 n'existe pas sur python.org)
+        sed -i -E 's/(python3|hostpython3)==[0-9.]+/\1/g' buildozer.spec
+        
+        # c) Forcer Kivy en version 2.3.0 (la 2.2.1 n'existe pas)
+        sed -i -E 's/kivy==[0-9.]+/kivy==2.3.0/g' buildozer.spec
+
     - name: Build APK
       env:
         BUILDOZER_SKIP_PIP_UPGRADE: 1
