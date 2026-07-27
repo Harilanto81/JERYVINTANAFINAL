@@ -43,24 +43,25 @@ jobs:
         pip3 install python-for-android==2024.1.21 --target "$P4A_DIR" --no-deps
 
         # 2) Download and install Android NDK r25b and export ANDROIDNDK for following steps
-        NDK_VERSION=r25b
+        # NOTE: use NDK_VERSION without a leading 'r' so buildozer/p4a won't end up with 'rr25b'
+        NDK_VERSION=25b
         BASE_DIR="$HOME/.buildozer/android/platform"
-        NDK_DIR="$BASE_DIR/android-ndk-${NDK_VERSION}"
+        NDK_DIR="$BASE_DIR/android-ndk-r${NDK_VERSION}"
         mkdir -p "$BASE_DIR"
 
         if [ ! -d "$NDK_DIR" ]; then
-          echo "Downloading Android NDK ${NDK_VERSION}..."
-          wget -q -O /tmp/android-ndk.zip "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
+          echo "Downloading Android NDK r${NDK_VERSION}..."
+          wget -q -O /tmp/android-ndk.zip "https://dl.google.com/android/repository/android-ndk-r${NDK_VERSION}-linux.zip"
           unzip -q /tmp/android-ndk.zip -d "$BASE_DIR"
           rm /tmp/android-ndk.zip || true
         else
-          echo "NDK ${NDK_VERSION} already present at $NDK_DIR"
+          echo "NDK r${NDK_VERSION} already present at $NDK_DIR"
         fi
 
         echo "ANDROIDNDK=$NDK_DIR" >> $GITHUB_ENV
         echo "Set ANDROIDNDK=$NDK_DIR"
 
-        # 3) Align buildozer.spec to same NDK version (optional but helpful)
+        # 3) Align buildozer.spec to same NDK version (without leading 'r')
         if grep -q "^android.ndk" buildozer.spec 2>/dev/null; then
           sed -i "s/^android.ndk.*/android.ndk = ${NDK_VERSION}/" buildozer.spec || true
         else
@@ -79,7 +80,7 @@ jobs:
     - name: Ensure buildozer targets 64-bit ABIs
       run: |
         # Ensure android.ndk exists (kept from earlier step if present)
-        grep -q "^android.ndk" buildozer.spec || echo "android.ndk = r25b" >> buildozer.spec
+        grep -q "^android.ndk" buildozer.spec || echo "android.ndk = 25b" >> buildozer.spec
 
         # Prefer android.archs (modern Buildozer); replace or append the desired list
         if grep -q "^android.archs" buildozer.spec; then
