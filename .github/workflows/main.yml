@@ -1,65 +1,682 @@
-name: Build Android APK
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+import os
+import math
+from datetime import datetime, timedelta
+import platform
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else os.getcwd()
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential
+if platform.system() == 'Windows':
+    os.environ['KIVY_GL_BACKEND'] = 'angle_sdl2'
 
-    - name: Set up Java 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: '17'
+from kivy.config import Config
+Config.set('graphics', 'multisamples', '0')
+Config.set('graphics', 'width', '360')
+Config.set('graphics', 'height', '740')
 
-    - name: Clean pip and install tools
-      run: |
-        pip cache purge
-        pip install --upgrade pip setuptools wheel
-        pip install cython==0.29.36 buildozer==1.5.0
+# ==========================================
+# IMPORTS KIVY ET KIVYMD
+# ==========================================
+from kivy.lang import Builder
+from kivy.metrics import dp
+from kivy.uix.screenmanager import SlideTransition
+from kivy.uix.image import Image
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.graphics import Color, RoundedRectangle, Rectangle
+from kivy.properties import ListProperty, StringProperty, NumericProperty, BooleanProperty, ObjectProperty
 
-    - name: Create icon if missing
-      run: |
-        if [ ! -f icon.png ]; then
-          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=' | base64 --decode > icon.png
-        fi
+from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.screenmanager import MDScreenManager
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.button import MDIconButton
+from kivymd.uix.label import MDLabel
+from kivymd.uix.textfield import MDTextField
+from kivymd.uix.scrollview import MDScrollView
 
-    - name: Clean previous builds
-      run: rm -rf .buildozer/ build/ dist/ bin/
+# Gestion des différentes versions de KivyMD
+try:
+    from kivymd.uix.pickers import MDDatePicker, MDTimePicker
+except ImportError:
+    from kivymd.uix.picker import MDDatePicker, MDTimePicker
 
-    - name: Build APK
-      env:
-        BUILDOZER_SKIP_PIP_UPGRADE: 1
-      run: buildozer -v android debug
 
-    - name: Check APK
-      run: |
-        if ls bin/*.apk 1> /dev/null 2>&1; then
-          echo "APK created successfully!"
-          ls -lh bin/*.apk
-        else
-          echo "Build failed"
-          exit 1
-        fi
+# ==========================================
+# WIDGETS "MAISON" SANS OMBRE (évite définitivement
+# le bug BoxShadow / elevation de KivyMD)
+# ==========================================
+class FlatCard(MDBoxLayout):
+    """Carte à coins arrondis, sans ombre portée."""
+    bg_color = ListProperty([0.16, 0.14, 0.20, 1])
+    border_color = ListProperty([0.4, 0.35, 0.5, 1])
+    corner_radius = NumericProperty(dp(16))
 
-    - name: Upload APK
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: JeryVintana-APK
-        path: bin/*.apk
-        retention-days: 30
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            self._border_col = Color(*self.border_color)
+            self._border_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.corner_radius])
+            self._bg_col = Color(*self.bg_color)
+            self._bg_rect = RoundedRectangle(
+                pos=(self.x + dp(1.5), self.y + dp(1.5)),
+                size=(self.width - dp(3), self.height - dp(3)),
+                radius=[max(self.corner_radius - dp(1.5), 0)],
+            )
+        self.bind(pos=self._update, size=self._update, bg_color=self._update_colors, border_color=self._update_colors)
+
+    def _update(self, *args):
+        self._border_rect.pos = self.pos
+        self._border_rect.size = self.size
+        self._bg_rect.pos = (self.x + dp(1.5), self.y + dp(1.5))
+        self._bg_rect.size = (max(self.width - dp(3), 0), max(self.height - dp(3), 0))
+
+    def _update_colors(self, *args):
+        self._border_col.rgba = self.border_color
+        self._bg_col.rgba = self.bg_color
+
+
+class FlatButton(ButtonBehavior, MDBoxLayout):
+    """Bouton plein à coins arrondis, sans ombre portée."""
+    bg_color = ListProperty([0.4, 0.3, 0.6, 1])
+    corner_radius = NumericProperty(dp(14))
+    label_text = StringProperty("")
+    text_color = ListProperty([1, 1, 1, 1])
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with self.canvas.before:
+            self._col = Color(*self.bg_color)
+            self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[self.corner_radius])
+        self.bind(pos=self._update_rect, size=self._update_rect, bg_color=self._update_color)
+
+        self._label = MDLabel(
+            halign='center', valign='middle',
+            theme_text_color='Custom', text_color=self.text_color,
+            bold=True,
+        )
+        self._label.bind(size=lambda inst, val: setattr(inst, 'text_size', val))
+        self.add_widget(self._label)
+        self.bind(label_text=self._update_label)
+        self._update_label()
+
+    def _update_rect(self, *args):
+        self._rect.pos = self.pos
+        self._rect.size = self.size
+
+    def _update_color(self, *args):
+        self._col.rgba = self.bg_color
+
+    def _update_label(self, *args):
+        self._label.text = self.label_text
+
+
+class TopBar(MDBoxLayout):
+    """Barre de titre simple, sans ombre portée.
+
+    Peut être instanciée directement en KV (les propriétés sont assignées
+    après construction) ou en Python via des kwargs (title_text=...,
+    show_back=..., back_callback=...).
+    """
+    title_text = StringProperty("")
+    bg_color = ListProperty([0.16, 0.13, 0.2, 1])
+    show_back = BooleanProperty(True)
+    back_callback = ObjectProperty(None, allownone=True)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault('orientation', 'horizontal')
+        kwargs.setdefault('size_hint_y', None)
+        kwargs.setdefault('height', dp(56))
+        kwargs.setdefault('padding', (dp(6), 0))
+        super().__init__(**kwargs)
+
+        with self.canvas.before:
+            self._col = Color(*self.bg_color)
+            self._rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_rect, size=self._update_rect, bg_color=self._update_color)
+
+        self._back_btn = MDIconButton(icon="arrow-left", theme_icon_color="Custom", icon_color=(1, 1, 1, 1))
+        self._back_btn.bind(on_release=self._on_back_press)
+        self._label = MDLabel(
+            text=self.title_text, theme_text_color='Custom', text_color=(1, 1, 1, 1),
+            font_style='H6', valign='middle',
+        )
+
+        if self.show_back:
+            self.add_widget(self._back_btn)
+        self.add_widget(self._label)
+
+        self.bind(title_text=self._update_title, show_back=self._update_back_visibility)
+
+    def _update_rect(self, *args):
+        self._rect.pos = self.pos
+        self._rect.size = self.size
+
+    def _update_color(self, *args):
+        self._col.rgba = self.bg_color
+
+    def _update_title(self, *args):
+        self._label.text = self.title_text
+
+    def _update_back_visibility(self, *args):
+        if self.show_back and self._back_btn not in self.children:
+            self.add_widget(self._back_btn, index=len(self.children))
+        elif not self.show_back and self._back_btn in self.children:
+            self.remove_widget(self._back_btn)
+
+    def _on_back_press(self, *args):
+        if self.back_callback:
+            self.back_callback()
+
+
+# ==========================================
+# KV LANGUAGE (DESIGN DE L'ÉCRAN PRINCIPAL)
+# ==========================================
+KV_PRINCIPAL = '''
+<EcranPrincipal>:
+    MDBoxLayout:
+        orientation: 'vertical'
+        md_bg_color: app.theme_cls.bg_dark
+
+        TopBar:
+            title_text: "Saisie de Naissance"
+            back_callback: app.go_back
+
+        MDScrollView:
+            MDBoxLayout:
+                orientation: 'vertical'
+                size_hint_y: None
+                height: self.minimum_height
+                padding: dp(20)
+                spacing: dp(20)
+
+                FlatCard:
+                    orientation: 'vertical'
+                    padding: dp(20)
+                    spacing: dp(15)
+                    corner_radius: dp(16)
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    MDLabel:
+                        text: "Informations Personnelles"
+                        font_style: 'H6'
+                        theme_text_color: 'Primary'
+                        size_hint_y: None
+                        height: self.texture_size[1]
+
+                    # SÉLECTEUR DE DATE
+                    MDBoxLayout:
+                        orientation: 'horizontal'
+                        spacing: dp(10)
+                        size_hint_y: None
+                        height: dp(60)
+
+                        MDTextField:
+                            id: date_input
+                            hint_text: "Date de naissance"
+                            icon_left: "calendar-month"
+                            readonly: True
+                            color_mode: 'custom'
+                            line_color_focus: 1, 1, 1, 1
+                            on_focus: if self.focus: app.show_date_picker()
+
+                        MDIconButton:
+                            icon: "calendar-edit"
+                            theme_icon_color: "Custom"
+                            icon_color: app.theme_cls.primary_color
+                            on_release: app.show_date_picker()
+
+                    # SÉLECTEUR D'HEURE
+                    MDBoxLayout:
+                        orientation: 'horizontal'
+                        spacing: dp(10)
+                        size_hint_y: None
+                        height: dp(60)
+
+                        MDTextField:
+                            id: time_input
+                            hint_text: "Heure de naissance"
+                            icon_left: "clock-time-four"
+                            readonly: True
+                            color_mode: 'custom'
+                            line_color_focus: 1, 1, 1, 1
+                            on_focus: if self.focus: app.show_time_picker()
+
+                        MDIconButton:
+                            icon: "clock-edit"
+                            theme_icon_color: "Custom"
+                            icon_color: app.theme_cls.primary_color
+                            on_release: app.show_time_picker()
+
+                    # CHAMP VILLE
+                    MDTextField:
+                        id: city_input
+                        hint_text: "Ville de naissance"
+                        icon_left: "map-marker"
+                        color_mode: 'custom'
+                        line_color_focus: 1, 1, 1, 1
+
+                    # BOUTON SEGMENTÉ
+                    MDBoxLayout:
+                        orientation: 'horizontal'
+                        size_hint_y: None
+                        height: dp(45)
+                        spacing: dp(8)
+                        padding: dp(10), 0
+
+                        FlatButton:
+                            id: btn_local
+                            label_text: "Locale"
+                            bg_color: app.theme_cls.primary_color
+                            corner_radius: dp(20)
+                            on_release: app.set_timezone("Local", btn_local, btn_utc)
+
+                        FlatButton:
+                            id: btn_utc
+                            label_text: "UTC"
+                            bg_color: app.theme_cls.bg_dark
+                            corner_radius: dp(20)
+                            on_release: app.set_timezone("UTC", btn_utc, btn_local)
+
+                FlatButton:
+                    label_text: "CALCULER MON VINTANA"
+                    size_hint_y: None
+                    height: dp(55)
+                    corner_radius: dp(14)
+                    bg_color: app.theme_cls.accent_color
+                    on_release: root.calculer_et_afficher_momba()
+
+                FlatCard:
+                    orientation: 'vertical'
+                    padding: dp(15)
+                    spacing: dp(10)
+                    corner_radius: dp(16)
+                    size_hint_y: None
+                    height: self.minimum_height
+
+                    DynamicLabel:
+                        id: result_label
+                        text: "[i]Remplissez les champs ci-dessus et cliquez sur Calculer.[/i]"
+                        font_size: '15sp'
+                        markup: True
+                        theme_text_color: 'Secondary'
+
+                FlatButton:
+                    label_text: "JEREO NY VINTANAO (Signes)"
+                    size_hint_y: None
+                    height: dp(50)
+                    corner_radius: dp(14)
+                    bg_color: app.theme_cls.primary_dark
+                    on_release: root.changer_ecran()
+'''
+
+# ==========================================
+# CLASSE DYNAMIQUE POUR LE TEXTE
+# ==========================================
+class DynamicLabel(MDLabel):
+    def __init__(self, **kwargs):
+        kwargs.setdefault('markup', True)
+        kwargs.setdefault('valign', 'top')
+        kwargs.setdefault('halign', kwargs.get('halign', 'left'))
+        kwargs.setdefault('size_hint_y', None)
+        super().__init__(**kwargs)
+        self.bind(width=self.update_size, texture_size=self.update_height)
+    def update_size(self, instance, value):
+        self.text_size = (value, None)
+    def update_height(self, instance, value):
+        self.height = value[1]
+
+# ==========================================
+# ÉCRAN PRINCIPAL AVEC LOGIQUE MODERNE
+# ==========================================
+class EcranPrincipal(MDScreen):
+    selected_date = None
+    selected_time = None
+    selected_tz = "Local"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def valider_donnees(self):
+        if not self.selected_date or not self.selected_time:
+            self.ids.result_label.text = "[color=ff0000][b]Erreur :[/b][/color] Veuillez sélectionner une date et une heure valides."
+            return None, None, None, None
+
+        date_str = self.selected_date.strftime("%d/%m/%Y")
+        nom = self.ids.city_input.text.strip() or "Antananarivo"
+
+        date_objet = datetime.combine(self.selected_date, self.selected_time)
+        return date_str, date_objet, nom, self.selected_time.strftime("%H:%M")
+
+    def calculer_et_afficher_momba(self):
+        date_recherchee, date_objet, nom_complet, heure_recherchee = self.valider_donnees()
+        if not date_objet:
+            return
+
+        try:
+            andro_gasy = self.obtenir_andro_gasy(date_recherchee)
+            luminosite_lune, repartition_lune, age_lune = self.calculer_details_lune(date_objet)
+            ange_gardien = self.calculer_ange_gardien(date_objet.day, date_objet.month)
+            _, reduite_cdv, element_cdv, inter_cdv = self.calculer_chemin_de_vie(date_recherchee)
+            _, reduite_dest, element_dest, inter_dest = self.calculer_isambitana(nom_complet)
+
+            self.renivintana = calculer_signe_solaire(date_objet.day, date_objet.month)
+            self.zanabintana = calculer_signe_lunaire(date_objet)
+            self.date_recherchee = date_recherchee
+            self.age_lune = age_lune
+            self.repartition_lune = repartition_lune
+            self.elem_dest = element_dest
+            self.elem_cdv = element_cdv
+            self.andro_gasy = andro_gasy
+        except Exception as e:
+            self.ids.result_label.text = f"[color=ff0000]Erreur de calcul : {str(e)}[/color]"
+            return
+
+        resultat = f"[b]ANDRO :[/b] {andro_gasy.upper()}\n[b]HAZAVAN'NY VOLANA :[/b] {luminosite_lune} %\n[b]ANJELY MPIAMBINA :[/b] [color=00ff00]{ange_gardien.upper()}[/color]\n\n"
+        resultat += f"[b]LALAM-PIAINANA :[/b] {reduite_cdv} ({element_cdv})\n[i]{inter_cdv}[/i]\n\n"
+        resultat += f"[b]VINTAN'NY ANARANA :[/b] {reduite_dest} ({element_dest})\n[i]{inter_dest}[/i]\n"
+        self.ids.result_label.text = resultat
+
+    def changer_ecran(self):
+        if not hasattr(self, 'renivintana') or not self.renivintana:
+            self.ids.result_label.text = "[color=ff0000][b]Alerte :[/b][/color] Cliquez d'abord sur Calculer."
+            return
+        app = MDApp.get_running_app()
+        ecran_vintanao = app.sm.get_screen('ecran_vintanao')
+        ecran_vintanao.mettre_a_jour_donnees(self.renivintana, self.zanabintana)
+        app.sm.current = 'ecran_vintanao'
+
+    def obtenir_andro_gasy(self, date_texte):
+        dictionnaire_jours = {"Monday": "Alatsinainy", "Tuesday": "Talata", "Wednesday": "Alarobia", "Thursday": "Alakamisy", "Friday": "Zoma", "Saturday": "Sabotsy", "Sunday": "Alahady"}
+        date_objet = datetime.strptime(date_texte, "%d/%m/%Y")
+        return dictionnaire_jours.get(date_objet.strftime("%A"), "Tsy fantatra")
+
+    def calculer_isambitana(self, nom_complet):
+        table_lettres = {chr(i): (i - 64) % 9 if (i - 64) % 9 != 0 else 9 for i in range(65, 91)}
+        nom_nettoye = nom_complet.upper().replace(" ", "")
+        valeurs = [table_lettres[l] for l in nom_nettoye if l in table_lettres]
+        if not valeurs:
+            return "0", 0, "Tsy hita", "Tsy misy anarana."
+        somme_reduite = reduire_nombre(sum(valeurs))
+        elements = {1: "Afo (Feu)", 2: "Rano (Eau)", 3: "Rivotra (Air)", 4: "Tany (Terre)", 5: "Rivotra (Air)", 6: "Tany (Terre)", 7: "Rano (Eau)", 8: "Afo (Feu)", 9: "Afo (Feu)"}
+        interpretations = {1: "Olon'ny asa.", 2: "Mpiara-miasa tsara.", 3: "Mahay mamorona.", 4: "Mpanorina mahatoky.", 5: "Mpitady fivoarana.", 6: "Mpitantana fianakaviana.", 7: "Mpitady fahalalana.", 8: "Mitady fahombiazana.", 9: "Mpanasoa fiarahamonina."}
+        return somme_reduite, elements.get(somme_reduite, "Tsy fantatra"), interpretations.get(somme_reduite, "Tsy misy fanazavana.")
+
+    def calculer_ange_gardien(self, jour, mois):
+        donnees_anges = "01/01-05/01:Nemamiah|06/01-10/01:Yeialel|11/01-15/01:Harahel|16/01-20/01:Mitzrael|21/01-25/01:Umabel|26/01-30/01:Iah-Hel|31/01-04/02:Anauel|05/02-09/02:Mehiel|10/02-14/02:Damabiah|15/02-19/02:Manakel|20/02-24/02:Eyael|25/02-29/02:Habuhiah|01/03-05/03:Rochel|06/03-10/03:Jabamiah|11/03-15/03:Haiaiel|16/03-20/03:Mumiah|21/03-25/03:Vehuaiah|26/03-30/03:Jeliel|31/03-04/04:Sitael|05/04-09/04:Elemiah|10/04-14/04:Mahasiah|15/04-20/04:Lelahel|21/04-25/04:Achaiah|26/04-30/04:Cahetel|01/05-05/05:Haziel|06/05-10/05:Aladiah|11/05-15/05:Lauviah|16/05-20/05:Hahaiah|21/05-25/05:Iezalel|26/05-31/05:Mebahel|01/06-05/06:Hariel|06/06-10/06:Hekamiah|11/06-15/06:Lauviah|16/06-21/06:Caliel|22/06-26/06:Leuviah|27/06-01/07:Pahaliah|02/07-06/07:Nelchael|07/07-11/07:Yeiayel|12/07-16/07:Melahel|17/07-23/07:Haheuiah|24/07-27/07:Nith-Haiah|28/07-01/08:Haaiah|02/08-06/08:Yeratel|07/08-12/08:Seheiah|13/08-17/08:Reiyel|18/08-22/08:Omael|23/08-28/08:Lecabel|29/08-02/09:Vasariah|03/09-07/09:Yehuiah|08/09-12/09:Lehahiah|13/09-17/09:Chavakiah|18/09-23/09:Menadel|24/09-28/09:Aniel|29/09-03/10:Haamiah|04/10-08/10:Rehael|09/10-13/10:Ieiazel|14/10-18/10:Hahahel|19/10-23/10:Mikael|24/10-28/10:Veuliah|29/10-02/11:Yelahiah|03/11-07/11:Sealiah|08/11-12/11:Ariel|13/11-17/11:Asaliah|18/11-22/11:Mihael|23/11-27/11:Vehuel|28/11-02/12:Daniel|03/12-07/12:Hahasiah|08/12-12/12:Imamiah|13/12-16/12:Nanael|17/12-21/12:Nithael|22/12-26/12:Mebahiah|27/12-31/12:Poyel"
+        for bloc in donnees_anges.split("|"):
+            dates, ange_nom = bloc.split(":")
+            debut, fin = dates.split("-")
+            dj, dm = map(int, debut.split("/"))
+            fj, fm = map(int, fin.split("/"))
+            if dm == fm:
+                if mois == dm and dj <= jour <= fj:
+                    return ange_nom
+            else:
+                if (mois == dm and jour >= dj) or (mois == fm and jour <= fj):
+                    return ange_nom
+        return "Tsy hita"
+
+    def calculer_chemin_de_vie(self, date_texte):
+        return calculer_chemin_de_vie(date_texte)
+
+
+# ==========================================
+# AUTRES ÉCRANS
+# ==========================================
+class EcranAccueil(MDScreen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = MDBoxLayout(orientation='vertical', padding=20, spacing=15, md_bg_color=(0.1, 0.08, 0.12, 1))
+        lbl_titre = MDLabel(text="[b]JERY VINTANA[/b]", markup=True, font_style='H4', halign='center', size_hint_y=0.15, theme_text_color="Custom", text_color=(0.8, 0.6, 1, 1))
+
+        card_img = FlatCard(orientation='vertical', size_hint_y=0.4, corner_radius=dp(20), padding=10)
+        img_path = os.path.join(BASE_DIR, 'Harilanto.jpg')
+        if os.path.exists(img_path):
+            card_img.add_widget(Image(source=img_path, allow_stretch=True, keep_ratio=True))
+
+        lbl_sous = MDLabel(text="Astrologie & Numérologie Malgache", halign='center', font_style='H6', size_hint_y=0.1, theme_text_color="Secondary")
+
+        btn_v = FlatButton(label_text="HIJERY VINTANA", size_hint_y=0.1)
+        btn_v.bind(on_release=lambda *x: setattr(MDApp.get_running_app().sm, 'current', 'ecran_principal'))
+
+        btn_f = FlatButton(label_text="HIJERY FIFANAMBINANA", size_hint_y=0.1, bg_color=(0.6, 0.2, 0.7, 1))
+        btn_f.bind(on_release=lambda *x: setattr(MDApp.get_running_app().sm, 'current', 'ecran_fifamabinana'))
+
+        for w in (lbl_titre, card_img, lbl_sous, btn_v, btn_f):
+            layout.add_widget(w)
+        self.add_widget(layout)
+
+
+class EcranVintanao(MDScreen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = MDBoxLayout(orientation='vertical', md_bg_color=(0.1, 0.08, 0.12, 1))
+        toolbar = TopBar(title_text="Ny Vintanao", show_back=True,
+                          back_callback=lambda: setattr(MDApp.get_running_app().sm, 'current', 'ecran_principal'))
+        self.layout.add_widget(toolbar)
+
+        scroll = MDScrollView(size_hint=(1, 1))
+        conteneur = MDBoxLayout(orientation='vertical', size_hint_y=None, spacing=15, padding=20)
+        conteneur.bind(minimum_height=conteneur.setter('height'))
+
+        card_reni = FlatCard(orientation='vertical', size_hint_y=None, spacing=10, padding=15, corner_radius=dp(15))
+        card_reni.bind(minimum_height=card_reni.setter('height'))
+        self.lbl_reni = DynamicLabel(text="RENIVINTANA\n[b]--[/b]", font_style='H5', halign='center')
+        self.lbl_elem_reni = DynamicLabel(text="", halign='center', theme_text_color='Secondary')
+        self.lbl_toetra_reni = DynamicLabel(text="", font_size='14sp')
+        card_reni.add_widget(self.lbl_reni)
+        card_reni.add_widget(self.lbl_elem_reni)
+        card_reni.add_widget(self.lbl_toetra_reni)
+
+        card_zana = FlatCard(orientation='vertical', size_hint_y=None, spacing=10, padding=15, corner_radius=dp(15))
+        card_zana.bind(minimum_height=card_zana.setter('height'))
+        self.lbl_zana = DynamicLabel(text="ZANABINTANA\n[b]--[/b]", font_style='H5', halign='center')
+        self.lbl_elem_zana = DynamicLabel(text="", halign='center', theme_text_color='Secondary')
+        self.lbl_toetra_zana = DynamicLabel(text="", font_size='14sp')
+        card_zana.add_widget(self.lbl_zana)
+        card_zana.add_widget(self.lbl_elem_zana)
+        card_zana.add_widget(self.lbl_toetra_zana)
+
+        conteneur.add_widget(card_reni)
+        conteneur.add_widget(card_zana)
+        scroll.add_widget(conteneur)
+        self.layout.add_widget(scroll)
+        self.add_widget(self.layout)
+
+    def mettre_a_jour_donnees(self, renivintana, zanabintana):
+        self.lbl_reni.text = f"RENIVINTANA\n[b]{renivintana}[/b]"
+        self.lbl_zana.text = f"ZANABINTANA\n[b]{zanabintana}[/b]"
+        elem_reni, toetra_reni = SIGNES_DATA.get(renivintana, ("", ""))
+        elem_zana, toetra_zana = SIGNES_DATA.get(zanabintana, ("", ""))
+        self.lbl_elem_reni.text = f"Singa : {elem_reni}"
+        self.lbl_toetra_reni.text = f"Toetra : {toetra_reni}"
+        self.lbl_elem_zana.text = f"Singa : {elem_zana}"
+        self.lbl_toetra_zana.text = f"Toetra : {toetra_zana}"
+
+
+class EcranFifamabinana(MDScreen):
+    pass
+
+
+class EcranFinalFifam(MDScreen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = MDBoxLayout(orientation='vertical', md_bg_color=(0.1, 0.08, 0.12, 1))
+        toolbar = TopBar(title_text="Valin'ny Fifanambinana", show_back=True,
+                          back_callback=lambda: setattr(MDApp.get_running_app().sm, 'current', 'ecran_accueil'))
+        self.layout.add_widget(toolbar)
+
+        box = MDBoxLayout(orientation='vertical', padding=25, spacing=20)
+        box_pct = FlatCard(orientation='vertical', size_hint_y=0.3, padding=20, corner_radius=dp(20))
+        self.lbl_pourcentage = MDLabel(text="0.00 %", font_style='H2', halign='center', valign='middle', bold=True, theme_text_color="Custom")
+        box_pct.add_widget(self.lbl_pourcentage)
+
+        box_comment = FlatCard(orientation='vertical', size_hint_y=0.4, padding=20, corner_radius=dp(20))
+        self.lbl_comment = DynamicLabel(text="", font_size='16sp', halign='center')
+        box_comment.add_widget(self.lbl_comment)
+
+        btn_refaire = FlatButton(label_text="Hanao Fifamabinana hafa", size_hint_y=0.1, bg_color=(0.6, 0.2, 0.7, 1))
+        btn_refaire.bind(on_release=lambda *x: setattr(MDApp.get_running_app().sm, 'current', 'ecran_fifamabinana'))
+
+        box.add_widget(box_pct)
+        box.add_widget(box_comment)
+        box.add_widget(btn_refaire)
+        self.layout.add_widget(box)
+        self.add_widget(self.layout)
+
+    def afficher_resultat(self, pourcentage, is_opp):
+        pct_str = f"{pourcentage:.2f} %"
+        if pourcentage >= 70:
+            self.lbl_pourcentage.text_color = (0, 1, 0, 1)
+            comment = "Mirary hafaliana sy fitahiana ianareo roa ! Mifanambina tsara na vola na zanaka na fahasalamana."
+        elif pourcentage >= 50:
+            self.lbl_pourcentage.text_color = (1, 0.84, 0, 1)
+            comment = "Mifanambina ihany ianareo. Mety hiroso ho fianakaviana nefa mila fifehezana."
+        else:
+            self.lbl_pourcentage.text_color = (1, 0.3, 0.2, 1)
+            if is_opp:
+                comment = "Voarara ny fiarahana noho ny fifanotoana sady tsy mahay miaraka koa ny singa."
+            else:
+                comment = "Latsaka kely ny antonony ny fifanambinana noho ny toetra tsy mahay miaraka."
+        self.lbl_pourcentage.text = pct_str
+        self.lbl_comment.text = comment
+
+
+# ==========================================
+# FONCTIONS GLOBALES DE CALCUL
+# ==========================================
+def reduire_nombre(nombre):
+    while nombre > 9:
+        if nombre in [11, 22, 33]:
+            break
+        nombre = sum(int(stat) for stat in str(nombre))
+    return nombre
+
+def calculer_signe_solaire(jour, mois):
+    if (mois == 3 and jour >= 21) or (mois == 4 and jour <= 19): return "Alahamady (Bélier)"
+    elif (mois == 4 and jour >= 20) or (mois == 5 and jour <= 20): return "Adaoro (Taureau)"
+    elif (mois == 5 and jour >= 21) or (mois == 6 and jour <= 20): return "Adizaoza (Gémeaux)"
+    elif (mois == 6 and jour >= 21) or (mois == 7 and jour <= 22): return "Asorotany (Cancer)"
+    elif (mois == 7 and jour >= 23) or (mois == 8 and jour <= 22): return "Alahasaty (Lion)"
+    elif (mois == 8 and jour >= 23) or (mois == 9 and jour <= 22): return "Asombola (Vierge)"
+    elif (mois == 9 and jour >= 23) or (mois == 10 and jour <= 22): return "Adimizana (Balance)"
+    elif (mois == 10 and jour >= 23) or (mois == 11 and jour <= 21): return "Alakarabo (Scorpion)"
+    elif (mois == 11 and jour >= 22) or (mois == 12 and jour <= 21): return "Alakaosy (Sagittaire)"
+    elif (mois == 12 and jour >= 22) or (mois == 1 and jour <= 19): return "Adijady (Capricorne)"
+    elif (mois == 1 and jour >= 20) or (mois == 2 and jour <= 18): return "Adalo (Verseau)"
+    elif (mois == 2 and jour >= 19) or (mois == 3 and jour <= 20): return "Alohotsy (Poissons)"
+    return "Tsy fantatra"
+
+def calculer_signe_lunaire(date_objet):
+    utc_time = date_objet - timedelta(hours=3)
+    year = utc_time.year
+    month = utc_time.month
+    day = utc_time.day + (utc_time.hour + utc_time.minute / 60.0 + utc_time.second / 3600.0) / 24.0
+    if month <= 2:
+        year -= 1
+        month += 12
+    A = year // 100
+    B = 2 - A + A // 4
+    JD = int(365.25 * (year + 4716)) + int(30.6001 * (month + 1)) + day + B - 1524.5
+    T = (JD - 2451545.0) / 36525.0
+    L0 = 218.316 + 481267.8813 * T
+    M = 134.963 + 477198.8676 * T
+    F = 93.272 + 483202.0175 * T
+    D = 297.850 + 445267.11135 * T
+    longitude = L0 + 6.289 * math.sin(math.radians(M)) - 1.274 * math.sin(math.radians(M - 2 * D)) + 0.658 * math.sin(math.radians(2 * D))
+    longitude = longitude % 360
+    signs = [(0, "Alahamady (Bélier)"), (30, "Adaoro (Taureau)"), (60, "Adizaoza (Gémeaux)"), (90, "Asorotany (Cancer)"), (120, "Alahasaty (Lion)"), (150, "Asombola (Vierge)"), (180, "Adimizana (Balance)"), (210, "Alakarabo (Scorpion)"), (240, "Alakaosy (Sagittaire)"), (270, "Adijady (Capricorne)"), (300, "Adalo (Verseau)"), (330, "Alohotsy (Poissons)")]
+    signe_nom = "Tsy fantatra"
+    for deg, nom in reversed(signs):
+        if longitude >= deg:
+            signe_nom = nom
+            break
+    return signe_nom
+
+def calculer_chemin_de_vie(date_texte):
+    chiffres = [int(char) for char in date_texte if char.isdigit()]
+    somme_reduite = reduire_nombre(sum(chiffres))
+    elements = {1: "Afo (Feu)", 2: "Rano (Eau)", 3: "Rivotra (Air)", 4: "Tany (Terre)", 5: "Rivotra (Air)", 6: "Tany (Terre)", 7: "Rano (Eau)", 8: "Afo (Feu)", 9: "Afo (Feu)", 11: "Rivotra (Air - Maitre)", 22: "Tany (Terre - Maitre)", 33: "Afo (Feu - Maitre)"}
+    interpretations = {1: "Olon'ny asa.", 2: "Mpiara-miasa tsara.", 3: "Mahay mamorona.", 4: "Mpanorina mahatoky.", 5: "Mpitady fivoarana.", 6: "Mpitantana fianakaviana.", 7: "Mpitady fahalalana.", 8: "Mitady fahombiazana.", 9: "Mpanasoa fiarahamonina.", 11: "Isambitana Mahery.", 22: "Isambitana Mahery.", 33: "Isambitana Mahery."}
+    return "", somme_reduite, elements.get(somme_reduite, "Tsy fantatra"), interpretations.get(somme_reduite, "Tsy misy fanazavana.")
+
+def calculer_details_lune(date_objet):
+    utc_time = date_objet - timedelta(hours=3)
+    date_reference = datetime(2000, 1, 6, 18, 14, 0)
+    delta_seconds = (utc_time - date_reference).total_seconds()
+    delta_jours = delta_seconds / 86400.0
+    cycle_lunaire = 29.530588853
+    age_lune = delta_jours % cycle_lunaire
+    angle = 2 * math.pi * age_lune / cycle_lunaire
+    luminosite = round((1 - math.cos(angle)) / 2 * 100)
+    return luminosite, "", age_lune
+
+SIGNES_DATA = {
+    "Alahamady (Bélier)": ("Afo (Feu)", "Olona mailaka, matanjaka, tia mandroso sy mpitarika olona, manana faharisihana be. Somary Pingapinga sy tsy mahandry tantana ary tsy tia ampiandrasina."),
+    "Adaoro (Taureau)": ("Tany (Terre)", "Calme be, tsy taitaitra, mijoro amin'ny heviny ary sarotra resena lahatra, mafy ary azo itokiana, izay atombony tsy maintsy vitany, somary mafy loha, possessif, bedoika."),
+    "Adizaoza (Gémeaux)": ("Rivotra (Air)", "Olona tia miresaka, mahay mandresy lahatra sy mivarotra amin'ny vava, lian-zavatra, mahay mis'adapte amin'ny situation misy, be fisalasalana. Somary be resaka kanefa betsaka amin'ny zavatra teneniny no tsy misy fotony."),
+    "Asorotany (Cancer)": ("Rano (Eau)", "Manana intuition be, fantary avy hatrany vao misy olona hafahafa na mandainga, sarotin-zavatra sy saropiaro, tia ankohonana sy tia maka fotoana iarahana aminy. Mora tohina, be kiry."),
+    "Alahasaty (Lion)": ("Afo (Feu)", "Olona mavitrika, jejojejo, manana créativité be ary tia miseho olona sy deraina ary ankasitrahana amin'ny zavara ataony, dedaka kely. Somary manana hambo ambony, tia fifaninanana ary tia manindry."),
+    "Asombola (Vierge)": ("Tany (Terre)", "Mieritreritra be vao manao zavatra, mitandrina be ary mandinika sy manao drafitra vao miroso, tia manao critique mba hanatsarana zavara. Be fitaintainana, somary perfectionniste sy matérialiste."),
+    "Adimizana (Balance)": ("Rivotra (Air)", "Tia miresaka, vetivety dia mampita sy mampilaza vaovao, tia mifandray amin'ny mpiara-monina, be fisalasalana, somary tia tena na égoiste ary superficiel."),
+    "Alakarabo (Scorpion)": ("Rano (Eau)", "Olona tafiditra be rehefa manao zavatra, mamita izay natomboka, mahery vaika ary mandindona be sy manana présence be, somary sokirina vao miresaka. Manao am-po be, somary manipulateur."),
+    "Alakaosy (Sagittaire)": ("Afo (Feu)", "Tia mandehandeha, manana fijery lavitra sy mihabo, mahitsy firesaka be ary tsy tia olona miolakolana, tsy ampiandrasina. Kizitina, tsy ampy fitandremana."),
+    "Adijady (Capricorne)": ("Tany (Terre)", "Olona manana vina lavitra, tompon'andraikitra, tia discipline sy mampandanja izany saingy somary pessimiste na manana fijery mihiba. Somary mangatsiaka na miavona, be fifehezana."),
+    "Adalo (Verseau)": ("Rivotra (Air)", "Mahaleo tena, tsy tia miankina amin'olona, tia aventure sy mandehandeha, tia mikaroka zava-baovao, tia manampy olona ary tia miavaka kely amin'ny endrika ivelany. Somary mitokatokana, sarotra raisina."),
+    "Alohotsy (Poissons)": ("Rano (Eau)", "Mpandrevirevy sy mpanonofy, raha tsy kotabaisina tsy mahavita zavatra haingana, manana sens artistique be ary liana amin'ny resaka ara-panahy. Mora rebirebena, tsy atokisana amin'ny vola.")
+}
+
+
+# ==========================================
+# APPLICATION PRINCIPALE AVEC PICKERS
+# ==========================================
+class JeryVintanaApp(MDApp):
+    def build(self):
+        self.theme_cls.primary_palette = "DeepPurple"
+        self.theme_cls.accent_palette = "Amber"
+        self.theme_cls.theme_style = "Dark"
+
+        Builder.load_string(KV_PRINCIPAL)
+
+        self.sm = MDScreenManager(transition=SlideTransition(direction='left'))
+        self.sm.add_widget(EcranAccueil(name='ecran_accueil'))
+        self.sm.add_widget(EcranPrincipal(name='ecran_principal'))
+        self.sm.add_widget(EcranVintanao(name='ecran_vintanao'))
+        self.sm.add_widget(EcranFifamabinana(name='ecran_fifamabinana'))
+        self.sm.add_widget(EcranFinalFifam(name='ecran_final_fifam'))
+        self.sm.current = 'ecran_accueil'
+        return self.sm
+
+    def go_back(self):
+        self.sm.current = 'ecran_accueil'
+
+    def show_date_picker(self):
+        date_dialog = MDDatePicker()
+        date_dialog.bind(on_save=self.on_date_save)
+        date_dialog.open()
+
+    def on_date_save(self, instance, value, date_range):
+        screen = self.sm.get_screen('ecran_principal')
+        screen.selected_date = value
+        screen.ids.date_input.text = value.strftime("%d/%m/%Y")
+        screen.ids.date_input.line_color_normal = (0, 1, 0, 1)  # Vert si valide
+
+    def show_time_picker(self):
+        time_dialog = MDTimePicker()
+        time_dialog.bind(on_time=self.on_time_save)
+        time_dialog.open()
+
+    def on_time_save(self, instance, time):
+        screen = self.sm.get_screen('ecran_principal')
+        screen.selected_time = time
+        screen.ids.time_input.text = time.strftime("%H:%M")
+        screen.ids.time_input.line_color_normal = (0, 1, 0, 1)  # Vert si valide
+
+    def set_timezone(self, tz, active_btn, inactive_btn):
+        screen = self.sm.get_screen('ecran_principal')
+        screen.selected_tz = tz
+        active_btn.bg_color = self.theme_cls.primary_color
+        inactive_btn.bg_color = self.theme_cls.bg_dark
+
+if __name__ == '__main__':
+    JeryVintanaApp().run()
