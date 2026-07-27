@@ -13,7 +13,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 1. Nettoyage espace disque
+    # 1. Libérer de l'espace disque
     - name: Free Disk Space
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -21,7 +21,7 @@ jobs:
         sudo rm -rf /opt/ghc
         sudo rm -rf "/usr/local/share/boost"
 
-    # 2. Configurer Python 3.11 (Crucial pour la stabilité de p4a/Cython)
+    # 2. Configurer Python 3.11
     - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
@@ -34,11 +34,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. Dépendances système d'Ubuntu 24.04
+    # 4. Dépendances système d'Ubuntu 24.04 (inclus dépendances pour Pillow / Kivy)
     - name: Install System Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libffi-dev libssl-dev ccache
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libffi-dev libssl-dev ccache libjpeg-dev
 
     # 5. Installer les bons outils Python
     - name: Install Buildozer & Cython
@@ -46,12 +46,12 @@ jobs:
         python -m pip install --upgrade pip setuptools
         pip install "cython<3.0.0" buildozer
 
-    # 6. Exécuter la compilation avec acceptation des licences Android SDK
+    # 6. Exécuter la compilation (SANS LE "yes |" QUI CAUSAIT LE BROKEN PIPE)
     - name: Build APK
       run: |
         export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
         export ACCEPT_SDK_LICENSES="1"
-        yes | buildozer -v android debug
+        buildozer -v android debug
 
     # 7. Sauvegarde de l'APK
     - name: Upload APK Artifact
