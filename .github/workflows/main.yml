@@ -34,19 +34,19 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # 4. Dépendances système d'Ubuntu 24.04 (inclus dépendances pour Pillow / Kivy)
+    # 4. Dépendances système d'Ubuntu 24.04
     - name: Install System Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libffi-dev libssl-dev ccache libjpeg-dev
 
-    # 5. Installer les bons outils Python
+    # 5. Installer les outils de build Python
     - name: Install Buildozer & Cython
       run: |
         python -m pip install --upgrade pip setuptools
         pip install "cython<3.0.0" buildozer
 
-    # 6. Exécuter la compilation (SANS LE "yes |" QUI CAUSAIT LE BROKEN PIPE)
+    # 6. Exécuter la compilation
     - name: Build APK
       run: |
         export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
