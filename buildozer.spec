@@ -5,7 +5,7 @@ package.domain = org.harilanto
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
-requirements = python3==3.11.15,hostpython3==3.11.15,kivy==2.3.0,pyjnius==1.7.0,android
+requirements = python3==3.11.15,hostpython3==3.11.15,kivy==2.2.1,pyjnius==1.4.9,android
 
 # Permissions requises
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
