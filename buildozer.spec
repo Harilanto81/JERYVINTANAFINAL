@@ -5,7 +5,7 @@ package.domain = org.harilanto
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
-requirements = python3==3.11.15,hostpython3==3.11.15,kivy==2.3.0
+requirements = python3==3.11.15,hostpython3==3.11.15,kivy==2.3.0,pyjnius==1.7.0,android
 
 # Permissions requises
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
@@ -41,3 +41,7 @@ android.gradle_version = 8.0
 [buildozer]
 log_level = 2
 warn_on_root = 1
+# Force clean build environment to avoid pip dependency conflicts
+clean_build = 1
+# Build directory path
+buildozer_dir = .buildozer
