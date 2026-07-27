@@ -1,14 +1,11 @@
 name: Build Android APK
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -35,20 +32,6 @@ jobs:
         pip install --upgrade pip setuptools wheel
         pip install cython==0.29.36 buildozer==1.5.0
 
-    - name: Set up Android NDK r25b
-      run: |
-        set -e
-        NDK_VERSION=25b
-        BASE_DIR="$HOME/.buildozer/android/platform"
-        NDK_DIR="$BASE_DIR/android-ndk-r${NDK_VERSION}"
-        mkdir -p "$BASE_DIR"
-        if [ ! -d "$NDK_DIR" ]; then
-          wget -q -O /tmp/ndk.zip "https://dl.google.com/android/repository/android-ndk-r${NDK_VERSION}-linux.zip"
-          unzip -q /tmp/ndk.zip -d "$BASE_DIR"
-          rm /tmp/ndk.zip
-        fi
-        echo "ANDROIDNDK=$NDK_DIR" >> $GITHUB_ENV
-
     - name: Create icon if missing
       run: |
         if [ ! -f icon.png ]; then
@@ -58,40 +41,18 @@ jobs:
     - name: Clean previous builds
       run: rm -rf .buildozer/ build/ dist/ bin/
 
-    - name: Prepare stable python-for-android and fix spec
-      run: |
-        # 1. Pré-télécharger la version stable de p4a (2024.1.21)
-        P4A_DIR=.buildozer/android/platform/python-for-android
-        mkdir -p $P4A_DIR
-        pip install python-for-android==2024.1.21 --target $P4A_DIR --no-deps
-        
-        # 2. Corriger le buildozer.spec pour éviter toutes les erreurs 404
-        # a) Forcer le NDK à 25b (supprime les anciennes références, même commentées, et ajoute la bonne)
-        sed -i '/android.ndk/d' buildozer.spec
-        sed -i '/^# android.ndk/d' buildozer.spec
-        echo "android.ndk = 25b" >> buildozer.spec
-        
-        # b) Forcer Python en 3.11.8 (la 3.11.15 n'existe pas sur python.org)
-        sed -i -E 's/(python3|hostpython3)==[0-9.]+/\1==3.11.8/g' buildozer.spec
-        
-        # c) Forcer Kivy en 2.3.0
-        sed -i -E 's/kivy==[0-9.]+/kivy==2.3.0/g' buildozer.spec
-        
-        # d) Forcer Pyjnius en 1.4.1 (la 1.4.9 n'existe pas)
-        sed -i -E 's/pyjnius==[0-9.]+/pyjnius==1.4.1/g' buildozer.spec
-
     - name: Build APK
       env:
         BUILDOZER_SKIP_PIP_UPGRADE: 1
-      run: buildozer android debug
+      run: buildozer -v android debug
 
     - name: Check APK
       run: |
         if ls bin/*.apk 1> /dev/null 2>&1; then
-          echo "✅ APK created successfully!"
+          echo "APK created successfully!"
           ls -lh bin/*.apk
         else
-          echo "❌ Build failed"
+          echo "Build failed"
           exit 1
         fi
 
