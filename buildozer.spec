@@ -8,7 +8,8 @@ version = 1.0.0
 
 # --- DÉPENDANCES STABLES ---
 # Fixer kivymd==1.2.0 empêche python-for-android d'utiliser une version unstable/master
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,pillow
+# Dans buildozer.spec
+requirements = python3,kivy==2.3.0,https://github.com/kivymd/KivyMD/archive/master.zip,pillow
 
 orientation = portrait
 fullscreen = 0
