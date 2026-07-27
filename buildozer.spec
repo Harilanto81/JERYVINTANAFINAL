@@ -21,7 +21,7 @@ android.archs = arm64-v8a,armeabi-v7a
 # API
 android.api = 34
 android.minapi = 24
-android.ndk = 27c
+android.ndk = 26c
 
 # Features optionnelles
 android.features = android.hardware.touchscreen
