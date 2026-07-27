@@ -21,11 +21,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip openjdk-17-jdk python3-pip \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev cmake \
-          libffi-dev libssl-dev build-essential
+        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential
 
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -33,30 +29,31 @@ jobs:
         distribution: temurin
         java-version: '17'
 
-    - name: Clean pip cache
+    - name: Clean pip and install tools
       run: |
         pip cache purge
         pip install --upgrade pip setuptools wheel
-        pip install cython==0.29.36 buildozer==1.4.6
+        pip install cython==0.29.36 buildozer==1.5.0
 
-    - name: Set up Android NDK
+    - name: Set up Android NDK r25b
       run: |
+        set -e
         NDK_VERSION=25b
         BASE_DIR="$HOME/.buildozer/android/platform"
         NDK_DIR="$BASE_DIR/android-ndk-r${NDK_VERSION}"
         mkdir -p "$BASE_DIR"
-
         if [ ! -d "$NDK_DIR" ]; then
           wget -q -O /tmp/ndk.zip "https://dl.google.com/android/repository/android-ndk-r${NDK_VERSION}-linux.zip"
           unzip -q /tmp/ndk.zip -d "$BASE_DIR"
           rm /tmp/ndk.zip
         fi
-
         echo "ANDROIDNDK=$NDK_DIR" >> $GITHUB_ENV
 
     - name: Create icon if missing
       run: |
-        [ ! -f icon.png ] && echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=' | base64 --decode > icon.png
+        if [ ! -f icon.png ]; then
+          echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=' | base64 --decode > icon.png
+        fi
 
     - name: Clean previous builds
       run: rm -rf .buildozer/ build/ dist/ bin/
@@ -64,7 +61,17 @@ jobs:
     - name: Build APK
       env:
         BUILDOZER_SKIP_PIP_UPGRADE: 1
-      run: buildozer android debug 2>&1 | tee build.log
+      run: buildozer android debug
+
+    - name: Check APK
+      run: |
+        if ls bin/*.apk 1> /dev/null 2>&1; then
+          echo "✅ APK created successfully!"
+          ls -lh bin/*.apk
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
 
     - name: Upload APK
       if: success()
@@ -72,3 +79,4 @@ jobs:
       with:
         name: JeryVintana-APK
         path: bin/*.apk
+        retention-days: 30
