@@ -6,13 +6,12 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json
 version = 1.0.0
 
-# Requirements épurés
+# Requirements nettoyés
 requirements = python3,kivy==2.3.0,kivymd,pillow,openssl
 
 orientation = portrait
 fullscreen = 0
 
-# Utiliser la branche master de p4a pour inclure les patchs Harfbuzz / NDK 25b
 p4a.branch = master
 
 # --- CONFIGURATION ANDROID ---
@@ -25,5 +24,6 @@ android.ndk = 25b
 android.permissions = INTERNET
 
 [buildozer]
-log_level = 2
+# MUST BE 1 on GitHub Actions to prevent log buffer overflow
+log_level = 1
 warn_on_root = 1
