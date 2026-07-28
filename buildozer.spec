@@ -6,12 +6,14 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json
 version = 1.0.0
 
-# --- REQUIREMENTS PURGÉS ---
-# On laisse Kivy gérer SDL2 en interne sans forcer sdl2_ttf/sdl2_image qui font planter Harfbuzz
+# Requirements épurés
 requirements = python3,kivy==2.3.0,kivymd,pillow,openssl
 
 orientation = portrait
 fullscreen = 0
+
+# Utiliser la branche master de p4a pour inclure les patchs Harfbuzz / NDK 25b
+p4a.branch = master
 
 # --- CONFIGURATION ANDROID ---
 android.accept_sdk_license = True
@@ -20,7 +22,6 @@ android.api = 33
 android.minapi = 24
 android.ndk = 25b
 
-# Permissions de base
 android.permissions = INTERNET
 
 [buildozer]
