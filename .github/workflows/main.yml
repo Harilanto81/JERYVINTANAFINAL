@@ -36,8 +36,11 @@ jobs:
 
     - name: Build APK
       run: |
-        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m"
+        # Augmentation mémoire heap pour éviter le crash silencieux Gradle
+        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4096m"
         export ACCEPT_SDK_LICENSES="1"
+        
+        # Build standard sans surcharger la console GitHub
         buildozer android debug
 
     - name: Upload APK Artifact
