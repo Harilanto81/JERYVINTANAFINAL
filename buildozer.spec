@@ -6,10 +6,9 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-# --- DÉPENDANCES STABLES ---
-# Fixer kivymd==1.2.0 empêche python-for-android d'utiliser une version unstable/master
-# Dans buildozer.spec
-requirements = python3,kivy==2.3.0,https://github.com/kivymd/KivyMD/archive/master.zip,pillow
+# --- DÉPENDANCES CORRIGÉES ---
+# Utlisation de kivymd 1.2.0 avec materialyoucolor pour éviter le crash de p4a
+requirements = python3,kivy==2.3.0,kivymd==1.2.0,materialyoucolor,pillow
 
 orientation = portrait
 fullscreen = 0
