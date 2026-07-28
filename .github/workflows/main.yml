@@ -13,6 +13,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Free Disk Space & Swap (Anti-Crash OOM)
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        # Création de mémoire SWAP pour éviter l'arrêt brutal du processus par l'OS
+        sudo fallocate -l 4G /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
@@ -29,23 +41,24 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libffi-dev libssl-dev ccache libjpeg-dev libpng-dev
 
-    - name: Install Buildozer & P4A Stable
+    - name: Force Cython 0.29.36 & Buildozer
       run: |
         python -m pip install --upgrade pip setuptools
-        pip install "cython<3.0.0" "buildozer==1.5.0" "python-for-android==2024.1.21"
+        pip install "cython==0.29.36" "buildozer==1.5.0" "python-for-android==2024.1.21"
 
     - name: Build APK
       run: |
-        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4096m"
+        export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m"
         export ACCEPT_SDK_LICENSES="1"
         
-        # Nettoyage préventif des builds échoués
-        rm -rf .buildozer
-        
+        # Commande pour capturer les vraies erreurs au moment exact du crash
         buildozer android debug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
+      if: always() # Récupère l'APK ou les logs même si le build échoue
       with:
         name: JeryVintana-APK
-        path: bin/*.apk
+        path: |
+          bin/*.apk
+          .buildozer/android/platform/build-*/build/other_builds/
