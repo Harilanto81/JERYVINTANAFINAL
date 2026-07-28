@@ -13,14 +13,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Free Disk Space & Swap (Anti-Crash OOM)
+    - name: Free Disk Space & Setup Swap
       run: |
+        # Nettoyage de l'espace disque inutile
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /opt/ghc
         sudo rm -rf "/usr/local/share/boost"
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-        # Création de mémoire SWAP pour éviter l'arrêt brutal du processus par l'OS
-        sudo fallocate -l 4G /swapfile
+        
+        # Liberation securisee si un swapfile existe deja
+        sudo swapoff -a || true
+        sudo rm -f /swapfile
+
+        # Creation d'un Swap de 4 Go robuste via dd
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 status=progress
         sudo chmod 600 /swapfile
         sudo mkswap /swapfile
         sudo swapon /swapfile
@@ -51,12 +56,11 @@ jobs:
         export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m"
         export ACCEPT_SDK_LICENSES="1"
         
-        # Commande pour capturer les vraies erreurs au moment exact du crash
         buildozer android debug
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
-      if: always() # Récupère l'APK ou les logs même si le build échoue
+      if: always()
       with:
         name: JeryVintana-APK
         path: |
