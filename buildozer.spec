@@ -6,9 +6,9 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-# --- DÉPENDANCES CORRIGÉES ---
-# Utlisation de kivymd 1.2.0 avec materialyoucolor pour éviter le crash de p4a
-requirements = python3,kivy==2.3.0,kivymd==1.2.0,materialyoucolor,pillow
+# --- DÉPENDANCES STABLES ---
+# On garde uniquement les paquets supportés nativement par p4a
+requirements = python3,kivy==2.3.0,pillow,kivymd
 
 orientation = portrait
 fullscreen = 0
