@@ -6,13 +6,14 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0.0
 
-# Ajout de libffi et openssl pour la compatibilité p4a
-requirements = python3,hostpython3,kivy==2.3.0,kivymd==1.2.0,pillow,libffi,openssl
+# --- REQUIREMENTS PURGÉS ---
+# Seuls les paquets natifs gérés sans ambiguïté par p4a
+requirements = python3,kivy==2.3.0,pillow,kivymd
 
 orientation = portrait
 fullscreen = 0
 
-# Config Android
+# --- CONFIGURATION ANDROID ---
 android.accept_sdk_license = True
 android.archs = arm64-v8a
 android.api = 33
