@@ -3,12 +3,12 @@ title = Jery Vintana
 package.name = jeryvintana
 package.domain = org.harilanto
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = py,png,jpg,kv,atlas,ttf,json
 version = 1.0.0
 
-# --- REQUIREMENTS PURGÉS ---
-# Seuls les paquets natifs gérés sans ambiguïté par p4a
-requirements = python3,kivy==2.3.0,pillow,kivymd
+# --- REQUIREMENTS OPTIMISÉS ---
+# Ajout des recettes natives SDL2 et OpenSSL indispensables pour KivyMD & Pillow
+requirements = python3, hostpython3, kivy==2.3.0, kivymd, pillow, sdl2_image, sdl2_ttf, openssl
 
 orientation = portrait
 fullscreen = 0
@@ -19,6 +19,9 @@ android.archs = arm64-v8a
 android.api = 33
 android.minapi = 24
 android.ndk = 25b
+
+# Permissions de base si KivyMD accède à Internet/Stockage
+android.permissions = INTERNET
 
 [buildozer]
 log_level = 2
