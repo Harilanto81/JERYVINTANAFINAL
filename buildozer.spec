@@ -6,9 +6,9 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json
 version = 1.0.0
 
-# --- REQUIREMENTS OPTIMISÉS ---
-# Ajout des recettes natives SDL2 et OpenSSL indispensables pour KivyMD & Pillow
-requirements = python3, hostpython3, kivy==2.3.0, kivymd, pillow, sdl2_image, sdl2_ttf, openssl
+# --- REQUIREMENTS PURGÉS ---
+# On laisse Kivy gérer SDL2 en interne sans forcer sdl2_ttf/sdl2_image qui font planter Harfbuzz
+requirements = python3,kivy==2.3.0,kivymd,pillow,openssl
 
 orientation = portrait
 fullscreen = 0
@@ -20,7 +20,7 @@ android.api = 33
 android.minapi = 24
 android.ndk = 25b
 
-# Permissions de base si KivyMD accède à Internet/Stockage
+# Permissions de base
 android.permissions = INTERNET
 
 [buildozer]
