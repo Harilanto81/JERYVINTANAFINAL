@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json
 version = 1.0.0
 
-# Ne PAS mettre cython ici, seulement dans le workflow github
+# Requirements épurés
 requirements = python3,kivy==2.3.0,kivymd,pillow,openssl
 
 orientation = portrait
